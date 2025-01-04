@@ -73,11 +73,17 @@ def sent_prompt_and_get_response(msg: str, data):
     access_token = get_access_token()
 
     if access_token:
-        prompt = f"Ты MetalPriceBot, ты занимаешься продажей металлов. Пользователь хочет купить: {msg}. Подбираем подходящих поставщиков:\n"
-
-        # Добавляем список поставщиков в запрос
+        # Формируем запрос
+        prompt = (
+            f"Ты — metalpricebot, занимаешься продажей металлов. Пользователь хочет купить: {msg}. "
+            "Обрати внимание, что запрос может содержать ошибки в написании, и ты должен попытаться понять, что имелось в виду. "
+            "Подбери подходящих поставщиков из следующего списка. Ответ должен быть кратким, с указанием только тех поставщиков, "
+            "которые могут предоставить этот товар. Для каждого подходящего поставщика укажи его название, краткое описание (если возможно) и ссылку на сайт. "
+            "Пример: 'Поставщик 1: описание, ссылка'. "
+        )
         for supplier in data:
-            prompt += f"{supplier.title}-->{supplier.site_url}\n"
+
+            prompt += f"- {supplier.title}: {supplier.site_url}\n"
 
         # Отправляем запрос к ИИ
         response = send_prompt(prompt, access_token)
@@ -87,7 +93,6 @@ def sent_prompt_and_get_response(msg: str, data):
         return decorated_response
     else:
         return "Не удалось получить access token."
-
 
 
 
