@@ -6,6 +6,7 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
+from database.orm_query import *
 from filter.chat_types import ChatTypeFilter
 from keyboard.inline import *
 
@@ -21,13 +22,21 @@ welcome_text = (
 
 
 @start_functions_private_router.message(CommandStart())
-async def start_cmd(message: types.Message):
+async def start_cmd(message: types.Message,session: AsyncSession):
     """Обработчик команды /start"""
+    user_id = message.from_user.id
+    users = await orm_get_id_bot_user(session)
+    if user_id not in users:
+        name = f"{message.from_user.first_name}"
+        username = f"@{message.from_user.username}" if message.from_user.username else ''
+        await orm_add_bot_users(session, user_id=user_id, name=name, username=username)
+
     await message.answer_photo(
         photo=types.FSInputFile('media/img.png'),
         caption=welcome_text,
-        reply_markup=start_functions_keyboard()
+        reply_markup= start_functions_keyboard()
     )
+
 
 
 @start_functions_private_router.callback_query(F.data == "start")
@@ -152,20 +161,14 @@ async def about_bot_message(query: types.Message):
     )
 
 
-@start_functions_private_router.callback_query(F.data == "suppliers_sites")
-async def suppliers_sites(query: types.CallbackQuery):
+@start_functions_private_router.callback_query(F.data == "suppliers2_sites")
+async def suppliers_sites(query: types.CallbackQuery,session: AsyncSession):
     """Обработчик callback_query для кнопки 'Сайты поставщиков'"""
+    suppliers = await  orm_get_suppliers(session)
     builder = InlineKeyboardBuilder()
-    builder.add(
-        InlineKeyboardButton(text="mc.ru", url="https://mc.ru/?ysclid=m5c9i3mvn0111482028"),
-        InlineKeyboardButton(text="23met.ru", url="https://23met.ru/?ysclid=m5c9igtota69342984"),
-        InlineKeyboardButton(text="galakmet.ru", url="https://www.galakmet.ru/?ysclid=m5c9it5q6x228282705"),
-        InlineKeyboardButton(text="alros.ru", url="https://alros.ru/?ysclid=m5c9j3nyrv161303270"),
-        InlineKeyboardButton(text="intormetall.ru", url="https://intormetall.ru/?ysclid=m5c9jgiq2v838272831"),
-        InlineKeyboardButton(text="evraz.market", url="https://evraz.market/?ysclid=m5c9jqd3hl498235972"),
-        InlineKeyboardButton(text="mkm-metal.ru", url="https://mkm-metal.ru/"),
-        InlineKeyboardButton(text="donalum.ru", url="https://donalum.ru/?ysclid=m5c9kimjcq580328169"),
-    )
+    for i in suppliers:
+        if i.site_url.startswith("https://"):
+            builder.add(InlineKeyboardButton(text=i.title,url=i.site_url))
     builder.add(InlineKeyboardButton(text="🔙 Вернуться в главное меню", callback_data="start"))
     await query.message.edit_caption(
         caption="Вот список сайтов поставщиков: 🌍",
