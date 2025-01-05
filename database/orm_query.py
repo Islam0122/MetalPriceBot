@@ -1,9 +1,11 @@
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
 from database.engine import session_maker
 from database.model import User, Supplier
 from sqlalchemy.exc import IntegrityError
+from datetime import datetime, timedelta
 
 
 async def orm_add_bot_users(session: AsyncSession, user_id, name, username):
@@ -154,3 +156,38 @@ async def get_total_admins(session: AsyncSession) -> int:
 async def get_total_suppliers(session: AsyncSession) -> int:
     result = await session.execute(select(Supplier))
     return len(result.scalars().all())
+
+
+async def get_supplier_creation_dates(session: AsyncSession):
+    earliest = await session.execute(select(func.min(Supplier.created)))
+    latest = await session.execute(select(func.max(Supplier.created)))
+
+    return {
+        "earliest": earliest.scalar(),
+        "latest": latest.scalar()
+    }
+
+
+async def get_user_creation_dates(session: AsyncSession):
+    earliest = await session.execute(select(func.min(User.created)))
+    latest = await session.execute(select(func.max(User.created)))
+
+    return {
+        "earliest": earliest.scalar(),
+        "latest": latest.scalar()
+    }
+
+
+async def get_suppliers_created_last_days(session: AsyncSession, days: int) -> int:
+    start_date = datetime.now() - timedelta(days=days)
+    query = select(Supplier).filter(Supplier.created >= start_date)
+    result = await session.execute(query)
+    return len(result.scalars().all())
+
+
+async def get_users_created_last_days(session: AsyncSession, days: int) -> int:
+    start_date = datetime.now() - timedelta(days=days)
+    query = select(User).filter(User.created >= start_date)
+    result = await session.execute(query)
+    return len(result.scalars().all())
+

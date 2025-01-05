@@ -7,9 +7,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.orm_query import get_admins, get_admin, get_admin_by_id, remove_admin, orm_add_admin, orm_add_supplier, \
-    orm_get_suppliers, orm_get_supplier_by_id, orm_delete_supplier, get_total_users, get_total_admins, \
-    get_total_suppliers
+from database.orm_query import *
 from filter.chat_types import ChatTypeFilter
 from keyboard.inline import start_admin_inline_keyboard, return_admin_panel_functions_keyboard, get_cancel_keyboard
 
@@ -436,16 +434,30 @@ async def delete_supplier_callback_query(query: types.CallbackQuery, session: As
         await query.answer("Поставщик успешно удален.", show_alert=True)
 
 
-async def get_statistics(session: AsyncSession) -> str:
+async def get_statistics_with_dates(session: AsyncSession) -> str:
     total_users = await get_total_users(session)
     total_admins = await get_total_admins(session)
     total_suppliers = await get_total_suppliers(session)
+
+    users_last_7_days = await get_users_created_last_days(session, 7)
+    suppliers_last_7_days = await get_suppliers_created_last_days(session, 7)
+
+    user_dates = await get_user_creation_dates(session)
+    supplier_dates = await get_supplier_creation_dates(session)
 
     return (
         "📊 Статистика:\n"
         f"- Всего пользователей: {total_users}\n"
         f"- Администраторов: {total_admins}\n"
-        f"- Поставщиков: {total_suppliers}\n"
+        f"- Поставщиков: {total_suppliers}\n\n"
+        f"⏳ За последние 7 дней:\n"
+        f"- Новых пользователей: {users_last_7_days}\n"
+        f"- Новых поставщиков: {suppliers_last_7_days}\n\n"
+        f"📅 Даты создания:\n"
+        f"- Самый ранний пользователь: {user_dates['earliest']}\n"
+        f"- Самый последний пользователь: {user_dates['latest']}\n"
+        f"- Самый ранний поставщик: {supplier_dates['earliest']}\n"
+        f"- Самый последний поставщик: {supplier_dates['latest']}\n"
     )
 
 @admin_private_router.callback_query(F.data == "bot_statistics")
@@ -458,7 +470,7 @@ async def bot_statistics_info_bot(query: types.CallbackQuery, session: AsyncSess
         return
 
     # Получаем статистику
-    statistics_text = await get_statistics(session)
+    statistics_text = await get_statistics_with_dates(session)
 
     # Отправляем ответ
     await query.message.edit_caption(
