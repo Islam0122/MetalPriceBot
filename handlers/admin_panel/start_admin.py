@@ -8,7 +8,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from database.orm_query import get_admins, get_admin, get_admin_by_id, remove_admin, orm_add_admin, orm_add_supplier, \
-    orm_get_suppliers, orm_get_supplier_by_id, orm_delete_supplier
+    orm_get_suppliers, orm_get_supplier_by_id, orm_delete_supplier, get_total_users, get_total_admins, \
+    get_total_suppliers
 from filter.chat_types import ChatTypeFilter
 from keyboard.inline import start_admin_inline_keyboard, return_admin_panel_functions_keyboard, get_cancel_keyboard
 
@@ -433,4 +434,35 @@ async def delete_supplier_callback_query(query: types.CallbackQuery, session: As
             reply_markup=InlineKeyboardBuilder().add(InlineKeyboardButton(text="🔙 Вернуться в главное меню", callback_data="start_admin")).as_markup()
         )
         await query.answer("Поставщик успешно удален.", show_alert=True)
+
+
+async def get_statistics(session: AsyncSession) -> str:
+    total_users = await get_total_users(session)
+    total_admins = await get_total_admins(session)
+    total_suppliers = await get_total_suppliers(session)
+
+    return (
+        "📊 Статистика:\n"
+        f"- Всего пользователей: {total_users}\n"
+        f"- Администраторов: {total_admins}\n"
+        f"- Поставщиков: {total_suppliers}\n"
+    )
+
+@admin_private_router.callback_query(F.data == "bot_statistics")
+async def bot_statistics_info_bot(query: types.CallbackQuery, session: AsyncSession) -> None:
+    user_id = query.from_user.id
+    admins = await get_admins(session)
+
+    if user_id not in admins:
+        await query.answer("У вас нет прав для выполнения этого действия.", show_alert=True)
+        return
+
+    # Получаем статистику
+    statistics_text = await get_statistics(session)
+
+    # Отправляем ответ
+    await query.message.edit_caption(
+        caption=statistics_text,
+        reply_markup=return_admin_panel_functions_keyboard(),
+    )
 

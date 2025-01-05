@@ -139,3 +139,18 @@ async def orm_delete_supplier(session: AsyncSession, supplier_id: str) -> None:
 
         else:
             raise ValueError("Поставщик не найден")
+
+
+async def get_total_users(session: AsyncSession) -> int:
+    result = await session.execute(select(User))
+    return len(result.scalars().all())
+
+
+async def get_total_admins(session: AsyncSession) -> int:
+    result = await session.execute(select(User).filter(User.is_admin == True))
+    return len(result.scalars().all())
+
+
+async def get_total_suppliers(session: AsyncSession) -> int:
+    result = await session.execute(select(Supplier))
+    return len(result.scalars().all())
