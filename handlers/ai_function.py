@@ -69,21 +69,46 @@ def send_prompt(msg: str, access_token: str):
         return "Ошибка при получении ответа от GigaChat."
 
 
+def check_grammar(text: str) -> str:
+    url = "https://api.languagetool.org/v2/check"
+    params = {
+        'text': text,
+        'language': 'ru',  # Для русского языка
+    }
+    response = requests.post(url, data=params)
+    result = response.json()
+
+    if result.get('matches'):
+        corrected_text = text
+        for match in result['matches']:
+            # Исправляем ошибки, заменяя на предложенные исправления
+            for replacement in match.get('replacements', []):
+                corrected_text = corrected_text.replace(match['context']['text'], replacement['value'])
+        return corrected_text
+    else:
+        return text  # Возвращаем текст без изменений, если ошибок нет
+
+
+
+
 def sent_prompt_and_get_response(msg: str, data):
     access_token = get_access_token()
 
     if access_token:
+        # Проверка грамматики текста
+        msg = check_grammar(msg)
+
         # Формируем запрос
         prompt = (
-            f"Ты — metalpricebot, занимаешься продажей металлов. Пользователь хочет купить: {msg}. "
+            f"Ты — metalpricebot, занимаешься продажей металлов. Ты общаешься с заказчиком. Пользователь хочет купить: {msg}. "
             "Обрати внимание, что запрос может содержать ошибки в написании, и ты должен попытаться понять, что имелось в виду. "
             "Подбери подходящих поставщиков из следующего списка. Ответ должен быть кратким, с указанием только тех поставщиков, "
-            "которые могут предоставить этот товар. Для каждого подходящего поставщика укажи его название, краткое описание (если возможно) и ссылку на сайт. "
-            "Пример: 'Поставщик 1: описание, ссылка'. Не упоминай поставщиков, которые не могут предоставить товар."
+            "которые могут предоставить этот товар. Для каждого подходящего поставщика укажи его название, краткое описание (если возможно) и ссылку на сайт (обязательно). "
+            "Пример: 'Поставщик 1: описание, ссылка обязтельно'. Не упоминай поставщиков, которые не могут предоставить товар. "
+            "Ты должен просто предложить список подходящих поставщиков.\n\n"
         )
         for supplier in data:
-
-            prompt += f"- {supplier.title}: {supplier.site_url}\n"
+            prompt += f"- {supplier.title}: {supplier.site_url} : {supplier.address}\n"
 
         # Отправляем запрос к ИИ
         response = send_prompt(prompt, access_token)

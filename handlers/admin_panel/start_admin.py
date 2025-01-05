@@ -260,6 +260,7 @@ async def add_admin(message: types.Message, session: AsyncSession):
 class SupplierForm(StatesGroup):
     waiting_for_name = State()  # Ожидаем название поставщика
     waiting_for_site_url = State()  # Ожидаем URL сайта поставщика
+    waiting_for_address = State()  # Ожидаем адрес поставщика
 
 
 @admin_private_router.callback_query(F.data == "add_supplier")
@@ -299,7 +300,8 @@ async def process_supplier_name(message: types.Message, state: FSMContext) -> No
     user_data = await state.get_data()
     message_id = user_data.get('message_id')
     if message_id:
-            await message.bot.delete_message(chat_id=message.chat.id, message_id=message_id)
+        await message.bot.delete_message(chat_id=message.chat.id, message_id=message_id)
+
     # Переходим к следующему состоянию (ожидаем URL сайта)
     await state.set_state(SupplierForm.waiting_for_site_url)
     m = await message.answer("Теперь введите URL сайта поставщика.", reply_markup=get_cancel_keyboard())
@@ -308,32 +310,66 @@ async def process_supplier_name(message: types.Message, state: FSMContext) -> No
 
 
 @admin_private_router.message(SupplierForm.waiting_for_site_url)
-async def process_supplier_site_url(message: types.Message, state: FSMContext, session: AsyncSession) -> None:
+async def process_supplier_site_url(message: types.Message, state: FSMContext) -> None:
     site_url = message.text.strip()
 
-    if not site_url:
-        await message.answer("URL сайта не может быть пустым. Пожалуйста, введите URL.")
+    if not site_url.startswith("http://") and not site_url.startswith("https://"):
+        await message.answer("❌ URL должен начинаться с 'http://' или 'https://'. Попробуйте снова.")
+        return
+
+    # Сохраняем данные в состоянии
+    await state.update_data(site_url=site_url)
+
+    # Удаляем старое сообщение
+    user_data = await state.get_data()
+    message_id = user_data.get('message_id')
+    if message_id:
+        await message.bot.delete_message(chat_id=message.chat.id, message_id=message_id)
+
+    # Переходим к следующему состоянию (ожидаем адрес)
+    await state.set_state(SupplierForm.waiting_for_address)
+    m = await message.answer(
+        "📍 Теперь введите адрес поставщика.",
+        reply_markup=get_cancel_keyboard()
+    )
+    await state.update_data(message_id=m.message_id)
+    await message.delete()
+
+
+@admin_private_router.message(SupplierForm.waiting_for_address)
+async def process_supplier_address(message: types.Message, state: FSMContext, session: AsyncSession) -> None:
+    address = message.text.strip()
+
+    if not address:
+        await message.answer("❌ Адрес не может быть пустым. Пожалуйста, введите адрес.")
         return
 
     # Получаем данные из состояния
     user_data = await state.get_data()
     supplier_name = user_data.get('supplier_name')
+    site_url = user_data.get('site_url')
 
-    # Добавляем нового поставщика в базу данных
-    await orm_add_supplier(session, supplier_name, site_url)
+    try:
+        # Добавляем нового поставщика в базу данных
+        await orm_add_supplier(session, supplier_name, site_url, address)
 
-    # Удаляем старое сообщение
-    message_id = user_data.get('message_id')
-    if message_id:
-        await message.bot.delete_message(chat_id=message.chat.id, message_id=message_id)
+        # Удаляем старое сообщение
+        message_id = user_data.get('message_id')
+        if message_id:
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=message_id)
 
+        # Завершаем процесс
+        await state.clear()
 
-    # Завершаем процесс
-    await state.clear()
-
-    # Отправляем сообщение об успешном добавлении
-    await message.answer(f"Поставщик '{supplier_name}' был успешно добавлен.", parse_mode=ParseMode.MARKDOWN,reply_markup=return_admin_panel_functions_keyboard())
-    await message.delete()
+        # Отправляем сообщение об успешном добавлении
+        await message.answer(
+            f"✅ Поставщик '<b>{supplier_name}</b>' был успешно добавлен.\n📍 Адрес: {address}",
+            parse_mode="HTML",
+        )
+    except Exception as e:
+        await message.answer(f"❌ Ошибка при добавлении поставщика: {e}")
+    finally:
+        await message.delete()
 
 
 @admin_private_router.callback_query(F.data == 'all_suppliers')
@@ -380,31 +416,31 @@ async def bot_all_suppliers_callback_query(query: types.CallbackQuery, session: 
 
 @admin_private_router.callback_query(F.data.startswith('suppliers_'))
 async def suppliers_info_callback_query(query: types.CallbackQuery, session: AsyncSession) -> None:
-    # Проверяем, является ли пользователь администратором
     user_id = query.from_user.id
-    admins = await get_admins(session)  # Получаем список ID администраторов из базы
+    admins = await get_admins(session)
 
     if user_id not in admins:
         await query.answer("У вас нет прав для выполнения этого действия.", show_alert=True)
         return
-
-    # Извлекаем ID поставщика из callback_data
     supplier_id = query.data.split('_')[1]
-
-    # Получаем информацию о поставщике из базы данных
     supplier = await orm_get_supplier_by_id(session, supplier_id)
-
     if supplier:
-        # Создаем клавиатуру с кнопкой для удаления поставщика
         keyboard = InlineKeyboardBuilder()
         keyboard.add(
-            InlineKeyboardButton(text="Удалить поставщика", callback_data=f"delete_supplier_{supplier.id}")
+            InlineKeyboardButton(text="❌ Удалить поставщика", callback_data=f"delete_supplier_{supplier.id}")
         )
         keyboard.add(InlineKeyboardButton(text="🔙 Вернуться в главное меню", callback_data="start_admin"))
-
-        # Обновляем caption с информацией о поставщике
+        caption = (
+            f"📦 <b>Информация о поставщике</b>\n\n"
+            f"🏷️ <b>Название:</b> {supplier.title}\n"
+            f"🌐 <b>Сайт:</b> {supplier.site_url or 'Не указан'}\n"
+            f"📍 <b>Адрес:</b> {supplier.address or 'Не указан'}\n"
+            f"🕒 <b>Создан:</b> {supplier.created.strftime('%d.%m.%Y %H:%M')}\n"
+            f"🔄 <b>Обновлен:</b> {supplier.updated.strftime('%d.%m.%Y %H:%M')}"
+        )
         await query.message.edit_caption(
-            caption=f"Поставщик: {supplier.title}\nСайт: {supplier.site_url}\nДата создания: {supplier.created}\nДата обновления: {supplier.updated}",
+            caption=caption,
+            parse_mode="HTML",
             reply_markup=keyboard.adjust(1).as_markup()
         )
     else:
@@ -459,6 +495,7 @@ async def get_statistics_with_dates(session: AsyncSession) -> str:
         f"- Самый ранний поставщик: {supplier_dates['earliest']}\n"
         f"- Самый последний поставщик: {supplier_dates['latest']}\n"
     )
+
 
 @admin_private_router.callback_query(F.data == "bot_statistics")
 async def bot_statistics_info_bot(query: types.CallbackQuery, session: AsyncSession) -> None:

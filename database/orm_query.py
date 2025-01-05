@@ -80,18 +80,12 @@ async def remove_admin(session: AsyncSession, user_id: int):
         await session.commit()
 
 
-async def orm_add_supplier(session: AsyncSession, title: str, site_url: str = None):
-    new_supplier = Supplier(title=title, site_url=site_url)
+async def orm_add_supplier(session: AsyncSession, title: str, site_url: str = None, address: str = None):
+    new_supplier = Supplier(title=title, site_url=site_url, address=address)
     session.add(new_supplier)
     await session.commit()
-
-    # Создаем запрос для получения всех поставщиков
     result = await session.execute(select(Supplier))
-
-    # Извлекаем все результаты из запроса
     suppliers = result.scalars().all()
-
-    # Возвращаем список поставщиков
     return suppliers
 
 

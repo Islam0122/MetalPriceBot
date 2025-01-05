@@ -164,7 +164,7 @@ async def about_bot_message(query: types.Message):
 @start_functions_private_router.callback_query(F.data == "suppliers2_sites")
 async def suppliers_sites(query: types.CallbackQuery,session: AsyncSession):
     """Обработчик callback_query для кнопки 'Сайты поставщиков'"""
-    suppliers = await  orm_get_suppliers(session)
+    suppliers = await orm_get_suppliers(session)
     builder = InlineKeyboardBuilder()
     for i in suppliers:
         if i.site_url.startswith("https://"):
@@ -173,16 +173,6 @@ async def suppliers_sites(query: types.CallbackQuery,session: AsyncSession):
     await query.message.edit_caption(
         caption="Вот список сайтов поставщиков: 🌍",
         reply_markup=builder.adjust(1).as_markup()
-    )
-
-
-@start_functions_private_router.callback_query(F.data == "history")
-async def history(query: types.CallbackQuery):
-    """Обработчик callback_query для кнопки 'История запросов'"""
-    history_text = "История запросов будет здесь. Пока что данные не сохранены."
-    await query.message.edit_caption(
-        caption=history_text,
-        reply_markup=return_menu_functions_keyboard()
     )
 
 

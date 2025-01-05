@@ -22,4 +22,5 @@ class Supplier(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     title: Mapped[str] = mapped_column(String(100), nullable=False)
+    address: Mapped[str] = mapped_column(String(200), nullable=True)
     site_url: Mapped[str] = mapped_column(String(100), nullable=True)

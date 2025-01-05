@@ -18,7 +18,7 @@ from common.bot_cmds_list import private
 load_dotenv(find_dotenv())
 
 bot = Bot(token=os.getenv('TOKEN'), parse_mode=ParseMode.HTML)
-bot.my_admins_list = [5627082052,]
+bot.my_admins_list = [5627082052, ]
 bot.group_id = os.getenv('group_id')
 dp = Dispatcher()
 
@@ -35,15 +35,48 @@ async def on_startup(bot):
 
     # Создание сессии
     data = [
-        {"title": "Металлокомплект", "url": "https://mc.ru/?ysclid=m5c9i3mvn0111482028"},
-        {"title": "23 Металлургическая компания", "url": "https://23met.ru/?ysclid=m5c9igtota69342984"},
-        {"title": "ГалакМет", "url": "https://www.galakmet.ru/?ysclid=m5c9it5q6x228282705"},
-        {"title": "АЛРОС", "url": "https://alros.ru/?ysclid=m5c9j3nyrv161303270"},
-        {"title": "ИнторМеталл", "url": "https://intormetall.ru/?ysclid=m5c9jgiq2v838272831"},
-        {"title": "Евраз", "url": "https://evraz.market/?ysclid=m5c9jqd3hl498235972"},
-        {"title": "МКМ-Металл", "url": "https://mkm-metal.ru/"},
-        {"title": "ДонАлюм", "url": "https://donalum.ru/?ysclid=m5c9kimjcq580328169"}
+        {
+            "title": "Металлокомплект",
+            "url": "https://mc.ru/?ysclid=m5c9i3mvn0111482028",
+            "address": "Москва, ул. Металлургов, д. 1"
+        },
+        {
+            "title": "23 Металлургическая компания",
+            "url": "https://23met.ru/?ysclid=m5c9igtota69342984",
+            "address": "Краснодар, ул. Промышленная, д. 23"
+        },
+        {
+            "title": "ГалакМет",
+            "url": "https://www.galakmet.ru/?ysclid=m5c9it5q6x228282705",
+            "address": "Санкт-Петербург, ул. Галактическая, д. 5"
+        },
+        {
+            "title": "АЛРОС",
+            "url": "https://alros.ru/?ysclid=m5c9j3nyrv161303270",
+            "address": "Новосибирск, ул. Алмазная, д. 10"
+        },
+        {
+            "title": "ИнторМеталл",
+            "url": "https://intormetall.ru/?ysclid=m5c9jgiq2v838272831",
+            "address": "Екатеринбург, ул. Индустриальная, д. 15"
+        },
+        {
+            "title": "Евраз",
+            "url": "https://evraz.market/?ysclid=m5c9jqd3hl498235972",
+            "address": "Челябинск, ул. Металлургическая, д. 7"
+        },
+        {
+            "title": "МКМ-Металл",
+            "url": "https://mkm-metal.ru/",
+            "address": "Казань, ул. Металлическая, д. 12"
+        },
+        {
+            "title": "ДонАлюм",
+            "url": "https://donalum.ru/?ysclid=m5c9kimjcq580328169",
+            "address": "Ростов-на-Дону, ул. Алюминиевая, д. 8"
+        }
     ]
+
     async with session_maker() as session:
         # Получаем всех пользователей из базы данных
         users = await orm_get_id_bot_user(session)
@@ -56,7 +89,7 @@ async def on_startup(bot):
 
         if not suppliers:  # Если таблица пустая, добавляем данные
             for supplier in data:
-                await orm_add_supplier(session, supplier['title'], supplier['url'])
+                await orm_add_supplier(session, supplier['title'], supplier['url'], supplier['address'])
 
     # Отправляем сообщение первому администратору
     await bot.send_message(bot.my_admins_list[0], "Сервер успешно запущен! 😊 Привет, босс!")

@@ -7,7 +7,7 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database.orm_query import orm_get_suppliers
+from database.orm_query import orm_get_suppliers, orm_get_supplier_by_id
 from filter.chat_types import ChatTypeFilter
 from handlers.ai_function import sent_prompt_and_get_response
 from handlers.user_panel.start_functions import welcome_text
@@ -128,4 +128,59 @@ async def cancel(query: types.CallbackQuery, state: FSMContext) -> None:
             text=welcome_text,
             reply_markup=start_functions_keyboard()
         )
+
+
+@find_supplier_private_router.callback_query(F.data == "find_supplier_by_city")
+async def find_supplier_by_city_callback_query(query: types.CallbackQuery, state: FSMContext,
+                                               session: AsyncSession) -> None:
+    await state.clear()
+    suppliers = await orm_get_suppliers(session)
+    builder = InlineKeyboardBuilder()
+    for supplier in suppliers:
+        builder.add(
+            InlineKeyboardButton(text=supplier.address, callback_data=f"city_{supplier.id}")
+        )
+    builder.add(InlineKeyboardButton(text="🔙 Вернуться в главное меню", callback_data="start"))
+    await query.message.edit_caption(
+        caption="Пожалуйста, выберите адрес, который вам ближе.",
+        reply_markup=builder.adjust(1).as_markup()  # Используем созданную клавиатуру
+    )
+    await query.answer("Жду ваш запрос! 📝")
+
+
+@find_supplier_private_router.callback_query(F.data.startswith("city_"))
+async def find_supplier_by_city_info_callback_query(query: types.CallbackQuery, state: FSMContext,
+                                                    session: AsyncSession) -> None:
+    # Извлекаем id поставщика из callback_data
+    supplier_id = int(query.data.split("_")[1])
+
+    # Получаем информацию о поставщике
+    supplier = await orm_get_supplier_by_id(session, supplier_id=supplier_id)
+
+    if supplier:
+        builder = InlineKeyboardBuilder()
+
+        # Добавляем кнопку с сайтом, если он существует и начинается с "https://"
+        if supplier.site_url and supplier.site_url.startswith("https://"):
+            builder.add(InlineKeyboardButton(text=supplier.title, url=supplier.site_url))
+
+        # Кнопка для возврата в главное меню
+        builder.add(InlineKeyboardButton(text="🔙 Вернуться в главное меню", callback_data="start"))
+
+        supplier_info = (
+            f"✨ Вот информация о поставщике, который может вам помочь с покупкой! ✨\n\n"
+            f"🛠 **Поставщик**: {supplier.title}\n"
+            f"📍 **Адрес**: {supplier.address}\n"
+            f"🌐 **Сайт**: {supplier.site_url if supplier.site_url else 'Нет сайта'}\n\n"
+            f"Вы можете обратиться к этому поставщику для получения более подробной информации и оформления заказа."
+        )
+
+        await query.message.edit_caption(
+            caption=supplier_info,
+            reply_markup=builder.adjust(1).as_markup() ,
+            parse_mode=ParseMode.MARKDOWN
+        )
+        await query.answer("Вот информация о поставщике! 📑")
+    else:
+        await query.answer("Извините, поставщик не найден. Попробуйте снова.")
 
